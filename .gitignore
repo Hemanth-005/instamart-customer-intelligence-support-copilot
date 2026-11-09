@@ -1,0 +1,29 @@
+# Python virtual environments
+.venv/
+venv/
+.venv-1/
+
+# Python cache files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Generated database
+data/instamart.db
+
+# Agent checkpoint files
+state/*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
