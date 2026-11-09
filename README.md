@@ -8,16 +8,15 @@ Layout: `src/data_pipeline.py` (Part A), `src/customer_models.py` (Part B), `src
 
 ## Reproduce
 
-```bash
-git clone https://github.com/Hemanth-005/instamart-customer-intelligence-support-copilot.git
-cd instamart-customer-intelligence-support-copilot
-python -m venv .venv
-source .venv/bin/activate            # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python generate_data.py              # last line: generated: customers=1200 products=40 orders_raw=13084 tickets=164
-python -m src.data_pipeline          # Part A: audit, clean, store, validate -> ALL CHECKPOINTS PASSED
-python run_project.py                # Parts A-D end to end, prints every number reported below
-```
+1. `git clone https://github.com/Hemanth-005/instamart-customer-intelligence-support-copilot.git`
+2. `cd instamart-customer-intelligence-support-copilot`
+3. `python -m venv .venv`
+4. `source .venv/bin/activate` (Windows PowerShell: `.venv\Scripts\Activate.ps1`)
+5. `pip install -r requirements.txt`
+6. `python generate_data.py` (last line: `generated: customers=1200 products=40 orders_raw=13084 tickets=164`)
+7. `python -m src.data_pipeline` (Part A; ends with `ALL CHECKPOINTS PASSED`)
+8. `python run_project.py` (Parts A to D end to end; prints every number reported below)
+9. `python tests_refund_guardrails.py` (optional refund guardrail tests)
 
 `run_project.py` regenerates every file under `data/clean/`, `data/instamart.db`, `outputs/` and `state/`. Seeds are fixed (42) wherever randomness appears.
 
@@ -30,6 +29,8 @@ python run_project.py                # Parts A-D end to end, prints every number
 | customers | 1200 x 5 | age 61 (5.08%), gender 30 (2.50%), others 0 |
 | products | 40 x 4 | none |
 | orders | 13084 x 9 | delivery_minutes 2541 (19.42%), others 0 |
+
+Data types: customers and orders are read as text except orders `quantity` and `discount_pct` (int); products `price_inr` is int; `order_amount` and `delivery_minutes` are text in the raw file because they contain `N/A`, `error` and blanks.
 
 | Audit figure | Value |
 |---|---|
@@ -53,7 +54,7 @@ python run_project.py                # Parts A-D end to end, prints every number
 
 Result: 12,309 rows (11,110 completed, 1,199 cancelled), no pending rows, 0 missing amounts, 0 missing delivery times among completed orders, 1,199 among cancelled; completed revenue INR 2,998,668.80.
 
-**Store and validate.** Clean CSVs are in `data/clean/`; the SQLite database `data/instamart.db` holds tables `customers`, `products`, `orders` (`order_ts` stored as `YYYY-MM-DD HH:MM:SS` text). `validate()` asserts 13 reference checkpoints (city and gender counts, age range, row counts, status counts, no pending rows, amount sum, delivery rules, database tables) and prints `ALL CHECKPOINTS PASSED`.
+**Store and validate.** Clean CSVs are in `data/clean/`; the SQLite database `data/instamart.db` holds tables `customers`, `products`, `orders` (`order_ts` stored as `YYYY-MM-DD HH:MM:SS` text). `validate()` asserts 14 reference checkpoints (city and gender counts, age range, row counts, status counts, no pending rows, amount sum, delivery rules, database tables) and prints `ALL CHECKPOINTS PASSED`.
 
 **SQL results** (`sql/queries.sql`, run with `pd.read_sql_query`):
 
@@ -177,7 +178,16 @@ Recall moved most (+0.20) while precision fell slightly (-0.06): the retention t
 | Zero-shot | 147 | 85.7% (126 / 147) | 7,372 | 50.1 |
 | Few-shot | 147 | 100% (147 / 147) | 12,520 | 85.2 |
 
-Zero-shot confusion (rows true, columns predicted): billing 38/0/0/0; delivery 0/36/0/0 (columns billing, delivery, fraud, technical); fraud 11 predicted billing and 23 correct; technical 10 predicted billing and 29 correct. The few-shot prompt costs about 35 extra tokens per ticket (+70%) and removes all 21 errors, so it is worth paying when a wrong category is costly, here above all for fraud tickets (11 of 34 misrouted as billing would miss the 2-hour security SLA); for a harmless label the cheaper prompt would do.
+Zero-shot confusion table (rows true, columns predicted):
+
+| True \ Predicted | billing | delivery | fraud | technical |
+|---|---|---|---|---|
+| billing | 38 | 0 | 0 | 0 |
+| delivery | 0 | 36 | 0 | 0 |
+| fraud | 11 | 0 | 23 | 0 |
+| technical | 10 | 0 | 0 | 29 |
+
+The few-shot prompt costs about 35 extra tokens per ticket (+70%) and removes all 21 errors, so it is worth paying when a wrong category is costly, here above all for fraud tickets (11 of 34 misrouted as billing would miss the 2-hour security SLA); for a harmless label the cheaper prompt would do.
 
 **Budget.** With zero-shot and `TOKEN_BUDGET = 6000`, 29 tickets end `budget_exhausted` and go to human review (`outputs/triage_budget_demo.csv`, 6,009 tokens used).
 
@@ -200,7 +210,7 @@ Zero-shot confusion (rows true, columns predicted): billing 38/0/0/0; delivery 0
 
 With zero overlap two questions break: "What delivery time makes a completed order eligible for a full refund?" and "How soon is money returned when a payment fails but is deducted?". The sentence holding the answer is cut across a chunk boundary, so the retrieved chunk contains only part of it and the expected fact is missing; the 10-word overlap keeps such sentences whole in at least one chunk.
 
-**Tools.** `TOOLS_SPEC` (name, description, JSON parameter spec) and `TOOL_MAP` define `get_order` (reads `data/instamart.db`), `search_policy` (returns `results`), `calculate_refund` (completed orders only; over 45 minutes refunds 100%, otherwise 0), `issue_refund` and `escalate_to_human` (each appends a timestamped JSON line to `outputs/refund_ledger.jsonl`). Refunds above INR 1000 are escalated, never issued.
+**Tools.** `TOOLS_SPEC` (name, description, JSON parameter spec) and `TOOL_MAP` define `get_order` (reads `data/instamart.db`), `search_policy` (returns `results`), `calculate_refund` (over 45 minutes refunds 100%, otherwise 0; the completed-only rule is enforced by the agent flow and by the checks inside `issue_refund` and `escalate_to_human`), `issue_refund` and `escalate_to_human` (each appends a timestamped JSON line to `outputs/refund_ledger.jsonl`). Refunds above INR 1000 are escalated, never issued.
 
 **ReAct loop** (`run_agent`, limits: 6 model calls, 6000 tokens, 10 seconds). Seven scenario results (`outputs/agent_runs.jsonl`, one line per run with every step):
 
