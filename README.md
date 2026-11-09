@@ -6,47 +6,14 @@
 Students learn to (1) fetch/read CSV exports and audit data, (2) clean and persist trusted tables in SQLite, (3) write SQL and pandas analytics, (4) segment customers and train a leakage-aware lapse model, (5) redact PII and triage text with retries/output validation, and (6) retrieve policy passages and execute bounded database-backed tools.
 
 ## Setup and run
+
 Python 3.11+ recommended.
-
-```bash
-python -m venv .venv
-# Windows PowerShell:
-.venv\Scripts\Activate.ps1
-# macOS/Linux:
-# source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-python generate_data.py
-python run_project.py
-```
-
-Open `notebooks/Customer_Intelligence_Support_Copilot.ipynb` and run cells from top to bottom. The notebook calls the same modules used by the scripts.
-
-## Repository map
-- `generate_data.py`: deterministic fictional CSV and policy generation.
-- `mock_llm.py`: offline stand-in for classification, policy answers and agent tool calls.
-- `src/data_pipeline.py`: audit, clean, SQLite load, validation.
-- `src/customer_models.py`: RFM, K-means, PCA, lapse model with train/test separation.
-- `src/triage.py`: token guardrails, PII redaction, retries, response validation, routing.
-- `src/policy_rag.py`: chunking, TF-IDF retrieval and grounded policy evaluation.
-- `src/refund_agent.py`: order lookup, refund calculation, ledger and bounded tool loop.
-- `sql/queries.sql`: seven SQL learning patterns.
-- `outputs/`: generated artifacts; `state/`: agent checkpoint examples.
-
-## How students should learn the data-fetching flow
-1. `pd.read_csv("data/raw/orders.csv", keep_default_na=False)` loads local export rows. In a production project, a fetch function might download from an approved endpoint or query a warehouse, but this exercise intentionally uses local synthetic data and has no credentials.
-2. Inspect shape, data types, null/blank counts, duplicate rows, keys and impossible values before cleaning.
-3. Apply one documented cleaning rule at a time and compare row/value counts before and after.
-4. Write clean CSVs for easy inspection and SQLite tables for repeatable SQL queries.
-5. Run assertions before downstream modelling. A failed assertion should stop the pipeline rather than silently propagate bad data.
-
-## Reproduce
 
 ### 1. Clone the repository
 
 ```bash
-git clone YOUR_GITHUB_REPOSITORY_URL
-cd instamart_customer_copilot_teaching_kit
+git clone https://github.com/Hemanth-005/instamart-customer-intelligence-support-copilot.git
+cd instamart-customer-intelligence-support-copilot
 ```
 
 ### 2. Create a virtual environment
@@ -56,6 +23,13 @@ Windows PowerShell:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
+```
+
+macOS/Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 ### 3. Install dependencies
@@ -83,9 +57,13 @@ Expected output:
 ALL CHECKPOINTS PASSED
 ```
 
-### 6. Run the notebook
+### 6. Run the project
 
-Open `notebooks/Customer_Intelligence_Support_Copilot.ipynb` in VS Code or Jupyter and run all cells from beginning to end.
+```bash
+python run_project.py
+```
+
+You can also open `notebooks/Customer_Intelligence_Support_Copilot.ipynb` in VS Code or Jupyter and run all cells from beginning to end.
 
 All model calls use the supplied offline mock implementation. No paid API key is required.
 
