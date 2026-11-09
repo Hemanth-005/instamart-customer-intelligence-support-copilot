@@ -32,8 +32,13 @@ def rfm_and_segments(k=4):
     km=KMeans(n_clusters=k,n_init=10,random_state=42); rfm["segment_id"]=km.fit_predict(X)
     profile=rfm.groupby("segment_id").agg(size=("customer_id","size"),recency=("recency","mean"),frequency=("frequency","mean"),monetary=("monetary","mean")).reset_index()
     order=profile.sort_values("monetary",ascending=False).segment_id.tolist()
-    names=["Premium" if i==order[0] else ("Frequent" if profile.set_index("segment_id").loc[i,"frequency"]>=profile.frequency.median() else "At Risk") for i in profile.segment_id]
-    name_map=dict(zip(profile.segment_id,names))
+    prof=profile.set_index("segment_id"); name_map={order[0]:"Premium"}
+    rest=[i for i in prof.index if i not in name_map]
+    if rest: name_map[prof.loc[rest,"frequency"].idxmax()]="Loyal Frequent"
+    rest=[i for i in prof.index if i not in name_map]
+    if rest: name_map[prof.loc[rest,"recency"].idxmax()]="Lapsing"
+    for i in prof.index:
+        name_map.setdefault(i,"Occasional")
     rfm["segment_name"]=rfm.segment_id.map(name_map); rfm["is_premium"]=rfm.segment_id.eq(order[0])
     OUT.mkdir(exist_ok=True)
     rfm[["customer_id","recency","frequency","monetary","segment_id","segment_name","is_premium"]].to_csv(OUT/"customer_segments.csv",index=False)
@@ -189,6 +194,13 @@ def build_lapse_model():
 
         print("Full cohort frequency mean:",
         full_cohort_frequency_mean)
+
+    # Confirm no feature column has a missing value after preprocessing (fit on train only)
+    best_prep=models["logistic"]["search"].best_estimator_.named_steps["prep"]
+    for nm,part in (("train",X_train),("test",X_test)):
+        Z=best_prep.transform(part); Z=Z.toarray() if hasattr(Z,"toarray") else Z
+        assert not np.isnan(Z).any(), f"missing values in {nm} features"
+    print("No missing values in any preprocessed feature column (train and test).")
 
     # Class-balance experiment: oversample training data only
     print("Original training class counts:")

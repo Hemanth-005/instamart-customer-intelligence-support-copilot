@@ -23,7 +23,7 @@ WITH customer_spend AS (
  SELECT customer_id, SUM(order_amount) AS total_spend FROM orders
  WHERE status='completed' GROUP BY customer_id
 ), average_spend AS (SELECT AVG(total_spend) AS avg_spend FROM customer_spend)
-SELECT customer_id,total_spend FROM customer_spend,average_spend
+SELECT customer_id,total_spend,avg_spend FROM customer_spend,average_spend
 WHERE total_spend > avg_spend;
 
 -- Q6: ranking window functions within city

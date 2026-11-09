@@ -15,12 +15,6 @@ __pycache__/
 .env
 .env.*
 
-# Generated database
-data/instamart.db
-
-# Agent checkpoint files
-state/*.json
-
 # OS files
 .DS_Store
 Thumbs.db

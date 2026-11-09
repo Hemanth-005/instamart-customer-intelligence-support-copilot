@@ -18,8 +18,25 @@ def _ledger(tool,order_id,refund_inr):
     OUT.mkdir(exist_ok=True); path=OUT/"refund_ledger.jsonl"
     with path.open("a",encoding="utf-8") as f: f.write(json.dumps({"timestamp":datetime.now(timezone.utc).isoformat(),"tool":tool,"order_id":order_id,"refund_inr":refund_inr})+"\n")
     return {"refund_inr":refund_inr}
-def issue_refund(order_id,refund_inr): return _ledger("issue_refund",order_id,refund_inr)
-def escalate_to_human(order_id,refund_inr): return _ledger("escalate_to_human",order_id,refund_inr)
+def _validate_refund(order_id,refund_inr,kind):
+    """Independent policy check before any ledger write. Returns an error string or None."""
+    order=get_order(order_id)
+    if "error" in order: return "order not found"
+    if order["status"]!="completed": return "only completed orders can be refunded"
+    expected=calculate_refund(order["order_amount"],order["delivery_minutes"])["refund_inr"]
+    if expected<=0: return "delivery within 45 minutes: no late-delivery refund"
+    try: amount=float(refund_inr)
+    except (TypeError,ValueError): return "invalid refund amount"
+    if abs(amount-expected)>0.01: return f"refund amount must equal INR {expected:.2f}"
+    if kind=="issue_refund" and expected>1000: return "refund above INR 1000 must be escalated to a human"
+    if kind=="escalate_to_human" and expected<=1000: return "refund of INR 1000 or less is approved automatically, not escalated"
+    return None
+def issue_refund(order_id,refund_inr):
+    err=_validate_refund(order_id,refund_inr,"issue_refund")
+    return {"error":err} if err else _ledger("issue_refund",order_id,refund_inr)
+def escalate_to_human(order_id,refund_inr):
+    err=_validate_refund(order_id,refund_inr,"escalate_to_human")
+    return {"error":err} if err else _ledger("escalate_to_human",order_id,refund_inr)
 TOOL_MAP={"get_order":get_order,"search_policy":search_policy,"calculate_refund":calculate_refund,"issue_refund":issue_refund,"escalate_to_human":escalate_to_human}
 TOOLS_SPEC = [
     {

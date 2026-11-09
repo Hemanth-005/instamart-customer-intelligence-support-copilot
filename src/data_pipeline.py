@@ -11,7 +11,8 @@ def audit():
         df=pd.read_csv(RAW/f"{name}.csv",keep_default_na=False)
         print(f"\n{name}: shape={df.shape}")
         print(df.dtypes)
-        print(pd.DataFrame({"missing_count":df.isna().sum(),"missing_pct":(df.isna().mean()*100).round(2)}))
+        miss=df.replace(r"^\s*$",np.nan,regex=True).isna()   # blank strings count as missing
+        print(pd.DataFrame({"missing_count":miss.sum(),"missing_pct":(miss.mean()*100).round(2)}))
     orders=pd.read_csv(RAW/"orders.csv",keep_default_na=False)
     cust=pd.read_csv(RAW/"customers.csv",keep_default_na=False)
     print("\nOrders audit:",{"rows":len(orders),"exact_duplicates":int(orders.duplicated().sum()),
@@ -65,18 +66,28 @@ def clean_data():
     return {"customers":cust,"products":prod,"orders":orders}
 def validate():
     c=pd.read_csv(CLEAN/"customers.csv"); o=pd.read_csv(CLEAN/"orders.csv",keep_default_na=False)
-    assert c.city.nunique()==6
-    assert set(c.gender.unique())<={"male","female","unknown"}
-    assert c.age.notna().all() and c.age.between(18,60).all()
-    assert o.order_id.is_unique
-    assert not o.status.eq("pending").any()
-    assert pd.to_numeric(o.order_amount,errors="coerce").notna().all()
-    d=pd.to_numeric(o.loc[o.status.eq("completed"),"delivery_minutes"],errors="coerce")
-    assert d.notna().all()
-    assert pd.to_numeric(o.loc[o.status.eq("cancelled"),"delivery_minutes"],errors="coerce").isna().all()
+    done=o[o.status.eq("completed")]; canc=o[o.status.eq("cancelled")]
+    amt=pd.to_numeric(o.order_amount,errors="coerce")
+    checks={
+     "six cities":c.city.nunique()==6,
+     "city counts":c.city.value_counts().to_dict()=={"Pune":227,"Delhi":210,"Bengaluru":197,"Chennai":191,"Hyderabad":191,"Mumbai":184},
+     "gender counts":c.gender.value_counts().to_dict()=={"female":610,"male":560,"unknown":30},
+     "ages 18-60, none missing":bool(c.age.notna().all() and c.age.between(18,60).all()),
+     "12309 order rows":len(o)==12309,
+     "order_id unique":bool(o.order_id.is_unique),
+     "11110 completed":len(done)==11110,
+     "1199 cancelled":len(canc)==1199,
+     "no pending":not o.status.eq("pending").any(),
+     "no missing amount":bool(amt.notna().all()),
+     "completed amount sum 2998668.80":round(float(pd.to_numeric(done.order_amount).sum()),2)==2998668.80,
+     "no missing delivery (completed)":bool(pd.to_numeric(done.delivery_minutes,errors="coerce").notna().all()),
+     "1199 missing delivery (cancelled)":int(pd.to_numeric(canc.delivery_minutes,errors="coerce").isna().sum())==1199,
+    }
     with sqlite3.connect(DB) as con:
         names={r[0] for r in con.execute("select name from sqlite_master where type='table'")}
-        assert {"customers","products","orders"}<=names
+        checks["db tables"]={"customers","products","orders"}<=names
+    bad=[k for k,v in checks.items() if not v]
+    assert not bad, f"FAILED CHECKPOINTS: {bad}"
     print("ALL CHECKPOINTS PASSED")
 if __name__=="__main__":
     audit(); clean_data(); validate()

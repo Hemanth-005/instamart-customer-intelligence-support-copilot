@@ -1,20 +1,17 @@
-"""Run all project stages in sequence. Use this after installing requirements."""
+"""Run all project stages in sequence. Use after installing requirements and running generate_data.py."""
 from src.data_pipeline import audit,clean_data,validate
 from src.customer_models import rfm_and_segments,build_lapse_model
-from src.triage import run_pipeline,FEW
-from src.policy_rag import PolicyRAG,evaluate
+from src.report import sql_report,eda_report,part_c_report,part_d_report
 def main():
-    print("\n=== PART A: AUDIT / CLEAN / VALIDATE ===")
-    audit(); clean_data(); validate()
-    print("\n=== PART B: SEGMENTS ===")
+    print("\n=== PART A: AUDIT / CLEAN / VALIDATE / SQL / EDA ===")
+    audit(); clean_data(); validate(); sql_report(); eda_report()
+    print("\n=== PART B: SEGMENTS AND LAPSE MODEL ===")
     rfm,diagnostics,profile,pca=rfm_and_segments()
-    print("K-means diagnostics:\n",diagnostics.to_string(index=False))
-    print("Segment profile:\n",profile.to_string(index=False)); print("PCA explained variance:",pca)
+    print("RFM:",rfm.shape,rfm.recency.median(),rfm.recency.min(),rfm.recency.max(),round(rfm.frequency.mean(),2),rfm.frequency.max(),round(rfm.monetary.mean(),2),round(rfm.monetary.max(),2))
+    print("K-means diagnostics:\n",diagnostics.round(3).to_string(index=False))
+    print("Segment profile:\n",profile.round(1).to_string(index=False)); print("PCA explained variance:",pca,pca.sum())
     print("Lapse model summary:",build_lapse_model())
-    print("\n=== PART C: TRIAGE ===")
-    triage,summary=run_pipeline(prompt=FEW,token_budget=100000)
-    print(summary); print(triage.head().to_string(index=False))
-    print("\n=== PART D: POLICY RAG ===")
-    rag=PolicyRAG(); print("chunks:",len(rag.chunks)); print(evaluate(rag).to_string(index=False))
-    print("\nProject pipeline finished. Review outputs/ and data/instamart.db.")
+    print("\n=== PART C: TRIAGE ==="); part_c_report()
+    print("\n=== PART D: POLICY RAG AND REFUND AGENT ==="); part_d_report()
+    print("\nProject pipeline finished.")
 if __name__=="__main__": main()
